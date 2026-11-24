@@ -1,9 +1,3 @@
-/*
- * sw.js — Service Worker: App Shell (Cache API) + Background Sync del Outbox.
- * Regla: solo Promesas explícitas. Todas las rutas son relativas (./) para GitHub Pages.
- */
-
-// Importar el mini-wrapper de IndexedDB en el contexto del Service Worker
 importScripts('./db-helper.js');
 
 const ENDPOINT = 'https://jsonplaceholder.typicode.com/posts';
@@ -19,9 +13,6 @@ const STATIC_FILES = [
   './icons/icon-512.png'
 ];
 
-// ---------------------------------------------------------------------------
-// Ciclo de vida: install / activate
-// ---------------------------------------------------------------------------
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_STATIC_NAME)
@@ -42,10 +33,6 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// ---------------------------------------------------------------------------
-// fetch: Cache First para el App Shell (solo GET del mismo origen).
-// Los POST a la API pasan directo a la red; si fallan, app.js los encola.
-// ---------------------------------------------------------------------------
 self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET' || new URL(req.url).origin !== self.location.origin) return;
@@ -57,9 +44,6 @@ self.addEventListener('fetch', (event) => {
   );
 });
 
-// ---------------------------------------------------------------------------
-// Puente SW -> UI: avisar a todas las pestañas abiertas (postMessage)
-// ---------------------------------------------------------------------------
 function notificarClientesActualizacion() {
   return self.clients.matchAll({ type: 'window', includeUncontrolled: true })
     .then((clientes) => {
@@ -72,9 +56,6 @@ function notificarClientesActualizacion() {
     });
 }
 
-// ---------------------------------------------------------------------------
-// Motor de sincronización en segundo plano
-// ---------------------------------------------------------------------------
 function sincronizarPendientesSW() {
   console.log('[SW-Sync] Ejecutando barrido de transacciones pendientes...');
 
@@ -104,16 +85,11 @@ function sincronizarPendientesSW() {
           });
       });
 
-      // Se retorna toda la cadena para que event.waitUntil() sepa cuándo terminó
       return Promise.all(promesasDeEnvio)
         .then(() => notificarClientesActualizacion());
     });
 }
 
-// ---------------------------------------------------------------------------
-// Evento sync: el navegador lo dispara cuando detecta conectividad estable,
-// aunque la pestaña de la PWA esté cerrada.
-// ---------------------------------------------------------------------------
 self.addEventListener('sync', (event) => {
   console.log('[SW-Sync] Evento sync disparado con etiqueta:', event.tag);
 
@@ -122,7 +98,6 @@ self.addEventListener('sync', (event) => {
       sincronizarPendientesSW()
         .catch((error) => {
           console.error('[SW-Sync] Falla en sincronización; el navegador reintentará luego:', error);
-          // Relanzar el error rechaza waitUntil -> el navegador programa un reintento
           throw error;
         })
     );

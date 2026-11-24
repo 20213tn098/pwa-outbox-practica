@@ -1,8 +1,3 @@
-/*
- * app.js — Lógica de UI, envío resiliente (Patrón Outbox) y reconexión.
- * Regla: solo Promesas explícitas (new Promise / .then / .catch / Promise.all).
- */
-
 const ENDPOINT = 'https://jsonplaceholder.typicode.com/posts';
 
 const form = document.getElementById('form-incidencia');
@@ -13,11 +8,7 @@ const btnPurgar = document.getElementById('btn-purgar');
 const badgeRed = document.getElementById('badge-red');
 const infoSync = document.getElementById('info-sync');
 
-// ---------------------------------------------------------------------------
-// Registro del Service Worker + puente de mensajes SW -> UI (postMessage)
-// ---------------------------------------------------------------------------
 if ('serviceWorker' in navigator) {
-  // Mitad receptora del puente: el SW avisa cuando terminó de sincronizar
   navigator.serviceWorker.addEventListener('message', (event) => {
     if (event.data && event.data.tipo === 'OUTBOX_SINCRONIZADO') {
       console.log('[UI] Confirmación recibida del Service Worker. Actualizando bandeja...');
@@ -26,15 +17,11 @@ if ('serviceWorker' in navigator) {
     }
   });
 
-  // Ruta RELATIVA para que el scope sea el subdirectorio de GitHub Pages
   navigator.serviceWorker.register('./sw.js')
     .then((reg) => console.log('[SW] Registrado con scope:', reg.scope))
     .catch((err) => console.error('[SW] Error al registrar:', err));
 }
 
-// ---------------------------------------------------------------------------
-// Indicador de red
-// ---------------------------------------------------------------------------
 function actualizarIndicadorRed() {
   if (navigator.onLine) {
     badgeRed.textContent = 'En Línea';
@@ -49,9 +36,6 @@ function mostrarInfo(texto) {
   infoSync.textContent = texto;
 }
 
-// ---------------------------------------------------------------------------
-// READ: dibuja la cola de IndexedDB en pantalla
-// ---------------------------------------------------------------------------
 function formatearHora(ms) {
   return new Date(ms).toLocaleString('es-MX', {
     day: '2-digit', month: '2-digit', year: 'numeric',
@@ -72,7 +56,6 @@ function renderizarColaOutbox() {
         return;
       }
 
-      // Más recientes primero
       registros
         .slice()
         .sort((a, b) => b.fechaCreacion - a.fechaCreacion)
@@ -104,9 +87,6 @@ function renderizarColaOutbox() {
     });
 }
 
-// ---------------------------------------------------------------------------
-// CREATE: envío resiliente con fallback a IndexedDB + registro de Background Sync
-// ---------------------------------------------------------------------------
 function procesarEnvioReporte(datosFormulario) {
   return fetch(ENDPOINT, {
     method: 'POST',
@@ -118,7 +98,6 @@ function procesarEnvioReporte(datosFormulario) {
       return respuesta.json();
     })
     .then(() => {
-      // Envío exitoso en vivo: bitácora local como 'sincronizado'
       mostrarInfo('Reporte enviado al servidor.');
       return guardarRegistro({
         ...datosFormulario,
@@ -136,7 +115,6 @@ function procesarEnvioReporte(datosFormulario) {
         fechaCreacion: Date.now()
       })
         .then(() => {
-          // Delegar el reenvío al Service Worker si hay soporte de Background Sync
           if ('serviceWorker' in navigator && 'SyncManager' in window) {
             return navigator.serviceWorker.ready
               .then((registro) => {
@@ -145,7 +123,6 @@ function procesarEnvioReporte(datosFormulario) {
               })
               .then(() => mostrarInfo('Sin red: reporte en cola. Se enviará en segundo plano al volver la conexión.'))
               .catch((err) => {
-                // Ej. Background Sync deshabilitado por el usuario: el registro ya está a salvo en IndexedDB
                 console.warn('[Outbox] No se pudo registrar sync-reportes:', err);
                 mostrarInfo('Sin red: reporte en cola en IndexedDB.');
               });
@@ -156,9 +133,6 @@ function procesarEnvioReporte(datosFormulario) {
     .then(() => renderizarColaOutbox());
 }
 
-// ---------------------------------------------------------------------------
-// UPDATE (fallback): reenvío desde la UI para navegadores sin SyncManager (Safari/iOS, Firefox)
-// ---------------------------------------------------------------------------
 function sincronizarPendientesFallback() {
   console.log('[Outbox] Buscando registros pendientes (fallback)...');
 
@@ -171,7 +145,6 @@ function sincronizarPendientesFallback() {
         return;
       }
 
-      // Arreglo de objetos -> arreglo de promesas (envío HTTP + update en IndexedDB)
       const promesasDeEnvio = pendientes.map((item) => {
         return fetch(ENDPOINT, {
           method: 'POST',
@@ -193,14 +166,9 @@ function sincronizarPendientesFallback() {
     });
 }
 
-// ---------------------------------------------------------------------------
-// Eventos de red
-// ---------------------------------------------------------------------------
 window.addEventListener('online', () => {
   actualizarIndicadorRed();
 
-  // Degradación elegante: solo sincroniza desde la UI si NO hay Background Sync.
-  // En Chrome lo hace sw.js; si ambos lo hicieran se enviarían POST duplicados.
   if (!('SyncManager' in window)) {
     console.log('[Outbox] Navegador sin SyncManager. Ejecutando fallback por evento online...');
     sincronizarPendientesFallback();
@@ -209,9 +177,6 @@ window.addEventListener('online', () => {
 
 window.addEventListener('offline', actualizarIndicadorRed);
 
-// ---------------------------------------------------------------------------
-// Formulario (submit)
-// ---------------------------------------------------------------------------
 form.addEventListener('submit', (e) => {
   e.preventDefault();
 
@@ -226,9 +191,6 @@ form.addEventListener('submit', (e) => {
     .catch((error) => console.error('[Outbox] No se pudo procesar el reporte:', error));
 });
 
-// ---------------------------------------------------------------------------
-// DELETE: purgar registros ya sincronizados
-// ---------------------------------------------------------------------------
 btnPurgar.addEventListener('click', () => {
   obtenerTodosLosRegistros()
     .then((registros) => {
@@ -240,13 +202,9 @@ btnPurgar.addEventListener('click', () => {
     .catch((error) => console.error('[Outbox] Error al purgar:', error));
 });
 
-// ---------------------------------------------------------------------------
-// Arranque: esta promesa rescata la cola guardada en IndexedDB al abrir la página
-// ---------------------------------------------------------------------------
 actualizarIndicadorRed();
 renderizarColaOutbox();
 
-// Si se abre la página ya con red y quedaron pendientes en un navegador sin SyncManager
 if (navigator.onLine && !('SyncManager' in window)) {
   sincronizarPendientesFallback();
 }

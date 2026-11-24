@@ -1,20 +1,11 @@
-/*
- * db-helper.js — Mini-wrapper promisificado de IndexedDB (Vanilla JS)
- * Se carga en index.html con <script> y en sw.js con importScripts('./db-helper.js').
- * Regla: solo Promesas explícitas (new Promise / .then / .catch).
- */
-
 const DB_NAME = 'pwa-outbox-db';
 const DB_VERSION = 1;
 const STORE_NAME = 'transacciones_pendientes';
 
-// Pieza 1: Apertura y migración de esquema
 function abrirDB() {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
 
-    // Solo se ejecuta si la BD es nueva o sube de versión.
-    // Es el ÚNICO lugar donde se pueden crear/borrar Object Stores.
     request.onupgradeneeded = (event) => {
       const db = event.target.result;
       if (!db.objectStoreNames.contains(STORE_NAME)) {
@@ -27,7 +18,6 @@ function abrirDB() {
   });
 }
 
-// Pieza 2: CREATE — escritura segura (se resuelve en tx.oncomplete, cuando ya está en disco)
 function guardarRegistro(datos) {
   return abrirDB().then((db) => {
     return new Promise((resolve, reject) => {
@@ -50,7 +40,6 @@ function guardarRegistro(datos) {
   });
 }
 
-// Pieza 3: READ — lectura completa en modo 'readonly'
 function obtenerTodosLosRegistros() {
   return abrirDB().then((db) => {
     return new Promise((resolve, reject) => {
@@ -65,7 +54,6 @@ function obtenerTodosLosRegistros() {
   });
 }
 
-// Pieza 4: UPDATE — get + put dentro de la MISMA transacción 'readwrite'
 function actualizarEstadoRegistro(id, nuevoEstado) {
   return abrirDB().then((db) => {
     return new Promise((resolve, reject) => {
@@ -94,7 +82,6 @@ function actualizarEstadoRegistro(id, nuevoEstado) {
   });
 }
 
-// Pieza 5: DELETE — eliminación por llave primaria
 function eliminarRegistro(id) {
   return abrirDB().then((db) => {
     return new Promise((resolve, reject) => {
